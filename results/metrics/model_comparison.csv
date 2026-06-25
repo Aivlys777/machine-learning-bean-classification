@@ -1,0 +1,4 @@
+Model,Accuracy,Precision,Recall,F1-Score,Training Time (s),Prediction Time (s),AUC
+RandomForest,0.8802,0.8443,0.8802,0.8617,0.194,0.0336,0.9512
+CatBoost,0.8856,0.8491,0.8856,0.8668,2.894,0.0022,0.9534
+ANN,0.8798,0.8443,0.8798,0.8614,0.455,0.0018,0.8864
