@@ -14,10 +14,11 @@ from datetime import datetime
 from sklearn.model_selection import train_test_split
 from collections import Counter
 
-from src.preprocessor import Preprocessor
-from src.models import RandomForestModel, XGBoostModel, LightGBMModel, CatBoostModel, ANNModel
-from src.evaluator import Evaluator
-from src.analyzer import DataAnalyzer
+from src.models.random_forest import RandomForestModel
+from src.models.xgboost import XGBoostModel
+from src.models.lightgbm import LightGBMModel
+from src.models.catboost import CatBoostModel
+from src.models.ann import ANNModel
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
