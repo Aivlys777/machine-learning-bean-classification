@@ -1,6 +1,5 @@
 """
 随机森林分类器
-课堂讲过的算法
 """
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier

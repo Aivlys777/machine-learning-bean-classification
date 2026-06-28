@@ -1,8 +1,8 @@
 """
 LightGBM分类器
-课堂没讲过的算法
 """
 import numpy as np
+import lightgbm as lgb
 from lightgbm import LGBMClassifier
 from src.base_model import BaseModel
 
@@ -42,20 +42,21 @@ class LightGBMModel(BaseModel):
             self.build_model()
         
         # 如果有验证集，使用early stopping并记录loss
-        if X_val is not None and y_val is not None:
-            eval_set = [(X_train, y_train), (X_val, y_val)]
+        if X_val is not None and y_val is not None and len(X_val) > 0:
+            eval_set = [(X_val, y_val)]
+            # 注意：early_stopping 在 callbacks 中
+            callbacks = [lgb.early_stopping(10)]
             self.model.fit(
                 X_train, y_train,
                 eval_set=eval_set,
-                callbacks=[LGBMClassifier.early_stopping(10), LGBMClassifier.log_evaluation(0)]
+                callbacks=callbacks
             )
-            # 获取loss曲线
+            # 获取loss曲线 - 取验证集loss
             if hasattr(self.model, 'evals_result_'):
                 results = self.model.evals_result_
-                if 'validation_0' in results and 'multi_logloss' in results['validation_0']:
-                    self.loss_curve = results['validation_0']['multi_logloss']
-                elif 'training' in results and 'multi_logloss' in results['training']:
-                    self.loss_curve = results['training']['multi_logloss']
+                if 'valid_0' in results and 'multi_logloss' in results['valid_0']:
+                    self.loss_curve = results['valid_0']['multi_logloss']
+                    print(f"✅ LightGBM loss曲线已记录，共{len(self.loss_curve)}个点")
         else:
             self.model.fit(X_train, y_train)
         

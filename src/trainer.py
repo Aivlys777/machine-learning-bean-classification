@@ -4,16 +4,14 @@
 """
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 from pathlib import Path
 import time
-import json
 import logging
-from datetime import datetime
 from sklearn.model_selection import train_test_split
 from collections import Counter
 
+from src.evaluator import Evaluator
+from src.analyzer import DataAnalyzer
 from src.models.random_forest import RandomForestModel
 from src.models.xgboost import XGBoostModel
 from src.models.lightgbm import LightGBMModel
@@ -25,21 +23,19 @@ logger = logging.getLogger(__name__)
 
 
 class Trainer:
-    """训练器类，整合整个训练流程"""
+    """训练器类"""
     
     def __init__(self, data_dir='data', results_dir='results', random_state=42):
         self.data_dir = data_dir
         self.results_dir = Path(results_dir)
         self.random_state = random_state
         
-        # 创建结果目录
         self._create_dirs()
         
         self.preprocessor = None
         self.evaluator = Evaluator(results_dir)
-        self.analyzer = DataAnalyzer(results_dir)  # 新增
+        self.analyzer = DataAnalyzer(results_dir)
         
-        # 初始化模型 - 5种算法
         self.models = {
             'RandomForest': RandomForestModel(random_state),
             'XGBoost': XGBoostModel(random_state),
@@ -76,29 +72,17 @@ class Trainer:
             d.mkdir(parents=True, exist_ok=True)
     
     def load_and_analyze(self, train_df, test_df, target_col='Class'):
-        """
-        加载并分析数据
-        
-        Args:
-            train_df: 训练集DataFrame
-            test_df: 测试集DataFrame
-            target_col: 目标列名
-        """
-        logger.info("\n" + "=" * 60)
+        """加载并分析数据"""
+        logger.info("=" * 60)
         logger.info("步骤1: 数据分析")
         logger.info("=" * 60)
         
-        # 执行数据分析
         self.data_analysis_results = self.analyzer.analyze_data(
             train_df, test_df, target_col
         )
         
-        logger.info("数据分析完成")
-        
-        # 提取特征和标签
         X_train_raw = train_df.drop(columns=[target_col])
         y_train_raw = train_df[target_col]
-        
         X_test_raw = test_df.drop(columns=[target_col])
         y_test_raw = test_df[target_col]
         
@@ -110,59 +94,58 @@ class Trainer:
         logger.info("步骤3: 训练模型")
         logger.info("=" * 60)
         
-        if self.X_train is None or self.y_train is None:
-            raise ValueError("请先加载和预处理数据")
+        if self.X_train is None:
+            raise ValueError("请先加载数据")
         
-        # 检查每个类别的样本数
+        # 检查类别分布
         class_counts = Counter(self.y_train)
         logger.info(f"训练集类别分布: {dict(class_counts)}")
         
-        # 找出样本数少于2的类别
-        small_classes = [cls for cls, count in class_counts.items() if count < 2]
-        
         # 划分验证集
-        if small_classes:
-            logger.warning(f"以下类别样本数少于2: {small_classes}，将不使用分层抽样")
+        try:
             X_train, X_val, y_train, y_val = train_test_split(
-                self.X_train, self.y_train, 
-                test_size=0.2, 
+                self.X_train, self.y_train,
+                test_size=0.2,
+                random_state=self.random_state,
+                stratify=self.y_train
+            )
+        except ValueError:
+            logger.warning("分层抽样失败，使用普通抽样")
+            X_train, X_val, y_train, y_val = train_test_split(
+                self.X_train, self.y_train,
+                test_size=0.2,
                 random_state=self.random_state
             )
-        else:
-            min_count = min(class_counts.values())
-            if min_count < 2:
-                logger.warning(f"最小类别样本数为 {min_count}，无法进行分层抽样，将使用普通抽样")
-                X_train, X_val, y_train, y_val = train_test_split(
-                    self.X_train, self.y_train, 
-                    test_size=0.2, 
-                    random_state=self.random_state
-                )
-            else:
-                try:
-                    X_train, X_val, y_train, y_val = train_test_split(
-                        self.X_train, self.y_train, 
-                        test_size=0.2, 
-                        random_state=self.random_state, 
-                        stratify=self.y_train
-                    )
-                except ValueError as e:
-                    logger.warning(f"分层抽样失败: {e}，将使用普通抽样")
-                    X_train, X_val, y_train, y_val = train_test_split(
-                        self.X_train, self.y_train, 
-                        test_size=0.2, 
-                        random_state=self.random_state
-                    )
         
-        logger.info(f"训练集大小: {len(X_train)}, 验证集大小: {len(X_val)}")
+        # 检查验证集类别是否在训练集中
+        train_classes = set(y_train)
+        val_classes = set(y_val)
+        missing = val_classes - train_classes
+        
+        if missing:
+            logger.warning(f"验证集包含训练集没有的类别: {missing}")
+            # 将缺失类别的样本移回训练集
+            mask = np.isin(y_val, list(missing))
+            if np.any(mask):
+                X_train = np.vstack([X_train, X_val[mask]])
+                y_train = np.concatenate([y_train, y_val[mask]])
+                X_val = X_val[~mask]
+                y_val = y_val[~mask]
+                logger.info(f"已将 {np.sum(mask)} 个样本移回训练集")
+        
+        logger.info(f"训练集: {len(X_train)}, 验证集: {len(X_val)}")
+        logger.info(f"验证集类别分布: {dict(Counter(y_val))}")
         
         for name, model in self.models.items():
-            logger.info(f"\n训练 {name}...")
+            logger.info(f"\n{'='*40}")
+            logger.info(f"训练 {name}...")
+            logger.info(f"{'='*40}")
+            
             start_time = time.time()
             
             try:
                 model.build_model()
                 
-                # 训练模型
                 if name == 'ANN':
                     model.train(X_train, y_train)
                 else:
@@ -170,32 +153,23 @@ class Trainer:
                 
                 self.training_times[name] = time.time() - start_time
                 self.trained_models[name] = model
-                logger.info(f"{name} 训练完成，耗时: {self.training_times[name]:.3f}s")
+                logger.info(f"✅ {name} 完成，耗时: {self.training_times[name]:.3f}s")
                 
                 # 获取loss曲线
-                try:
-                    loss_curve = model.get_loss_curve()
-                    if loss_curve is not None and len(loss_curve) > 0:
-                        self.loss_curves[name] = loss_curve
-                        logger.info(f"{name} loss曲线已记录，共{len(loss_curve)}个点")
-                except Exception as e:
-                    logger.warning(f"{name} loss曲线获取失败: {e}")
-                
+                loss_curve = model.get_loss_curve()
+                if loss_curve is not None and len(loss_curve) > 0:
+                    self.loss_curves[name] = loss_curve
+                    logger.info(f"✅ {name} loss曲线已记录，共{len(loss_curve)}个点")
+                else:
+                    logger.warning(f"⚠️ {name} loss曲线为空")
+                    
             except Exception as e:
-                logger.error(f"{name} 训练失败: {e}")
-                # 如果是CatBoost的问题，尝试不使用验证集
-                if 'CatBoost' in name:
-                    try:
-                        logger.info(f"尝试不使用验证集重新训练 {name}...")
-                        model.build_model()
-                        model.train(X_train, y_train, None, None)
-                        self.training_times[name] = time.time() - start_time
-                        self.trained_models[name] = model
-                        logger.info(f"{name} 训练完成，耗时: {self.training_times[name]:.3f}s")
-                    except Exception as e2:
-                        logger.error(f"{name} 再次训练失败: {e2}")
+                logger.error(f"❌ {name} 训练失败: {e}")
+                import traceback
+                traceback.print_exc()
         
-        # 绘制loss曲线对比
+        logger.info(f"\n收集到的loss曲线: {list(self.loss_curves.keys())}")
+        
         if self.loss_curves:
             self.evaluator.plot_loss_curves_comparison(self.loss_curves)
         
@@ -207,43 +181,19 @@ class Trainer:
         logger.info("步骤4: 评估模型")
         logger.info("=" * 60)
         
-        if self.X_test is None or self.y_test is None:
-            raise ValueError("请先加载和预处理数据")
-        
         for name, model in self.trained_models.items():
             logger.info(f"\n评估 {name}...")
-            start_time = time.time()
             
             try:
-                # 预测
                 y_pred = model.predict(self.X_test)
-                self.prediction_times[name] = time.time() - start_time
                 
-                # 获取预测概率
-                try:
-                    y_pred_proba = model.predict_proba(self.X_test)
-                except:
-                    y_pred_proba = None
-                
-                # 评估
                 result = self.evaluator.evaluate(
                     self.y_test, y_pred,
-                    model_name=name,
-                    y_pred_proba=y_pred_proba
+                    model_name=name
                 )
                 
-                # 获取特征重要性
-                try:
-                    importance = model.get_feature_importance()
-                    if importance is not None and len(importance) > 0:
-                        self.evaluator.plot_feature_importance(
-                            importance, self.preprocessor.feature_names, name
-                        )
-                except Exception as e:
-                    logger.warning(f"{name} 特征重要性获取失败: {e}")
-                
                 self.results[name] = result
-                logger.info(f"{name} 准确率: {result['accuracy']:.4f}, F1: {result['f1_score']:.4f}")
+                logger.info(f"{name} 准确率: {result['accuracy']:.4f}")
                 
             except Exception as e:
                 logger.error(f"{name} 评估失败: {e}")
@@ -251,9 +201,7 @@ class Trainer:
         return self.results
     
     def robustness_test(self, noise_levels=[0.05, 0.1, 0.2, 0.3]):
-        """
-        鲁棒性测试：在不同噪声级别下评估模型
-        """
+        """鲁棒性测试"""
         logger.info("\n" + "=" * 60)
         logger.info("鲁棒性测试")
         logger.info("=" * 60)
@@ -261,14 +209,13 @@ class Trainer:
         robustness_results = {}
         
         if not self.trained_models:
-            logger.warning("没有已训练的模型，跳过鲁棒性测试")
             return robustness_results
         
         for noise_type in ['gaussian', 'uniform']:
             robustness_results[noise_type] = {}
             
             for level in noise_levels:
-                logger.info(f"\n测试噪声: {noise_type}, 强度: {level}")
+                logger.info(f"\n噪声: {noise_type}, 强度: {level}")
                 
                 X_test_noisy = self.preprocessor.add_noise(
                     self.X_test, noise_type=noise_type, intensity=level
@@ -281,8 +228,7 @@ class Trainer:
                         acc = self.evaluator.calculate_accuracy(self.y_test, y_pred)
                         level_results[name] = acc
                         logger.info(f"  {name}: {acc:.4f}")
-                    except Exception as e:
-                        logger.warning(f"  {name} 测试失败: {e}")
+                    except:
                         level_results[name] = 0.0
                 
                 robustness_results[noise_type][level] = level_results

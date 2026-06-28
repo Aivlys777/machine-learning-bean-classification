@@ -42,10 +42,10 @@
 | 算法 | 类型 | 来源 |
 |------|------|------|
 | **Random Forest** | 集成学习 - Bagging | 课堂讲解 |
-| **XGBoost** | 梯度提升 - Boosting | 课堂讲解 |
+| **ANN (MLP)** | 神经网络  | 课堂讲解 |
 | **LightGBM** | 梯度提升 - Boosting | 课外自学 |
 | **CatBoost** | 梯度提升 - Boosting | 课外自学 |
-| **ANN (MLP)** | 神经网络 | 课外自学 |
+| **XGBoost** | 梯度提升 - Boosting | 课外自学 |
 
 ---
 

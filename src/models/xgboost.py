@@ -1,6 +1,5 @@
 """
 XGBoost分类器
-课堂讲过的算法
 """
 import numpy as np
 from xgboost import XGBClassifier
@@ -40,21 +39,20 @@ class XGBoostModel(BaseModel):
         if self.model is None:
             self.build_model()
         
-        # 如果有验证集，使用early stopping并记录loss
-        if X_val is not None and y_val is not None:
-            eval_set = [(X_train, y_train), (X_val, y_val)]
+        # 如果有验证集，使用eval_set记录loss
+        if X_val is not None and y_val is not None and len(X_val) > 0:
+            eval_set = [(X_val, y_val)]
             self.model.fit(
                 X_train, y_train,
                 eval_set=eval_set,
-                early_stopping_rounds=10,
                 verbose=False
             )
-            # 获取loss曲线
+            # 获取loss曲线 - 取验证集loss
             if hasattr(self.model, 'evals_result_'):
                 results = self.model.evals_result()
-                # 训练集loss
                 if 'validation_0' in results and 'mlogloss' in results['validation_0']:
                     self.loss_curve = results['validation_0']['mlogloss']
+                    print(f"✅ XGBoost loss曲线已记录，共{len(self.loss_curve)}个点")
         else:
             self.model.fit(X_train, y_train)
         

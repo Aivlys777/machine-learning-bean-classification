@@ -1,7 +1,6 @@
 """
 ANN（人工神经网络）分类器
 使用多层感知机（MLP）实现
-课堂没讲过的算法 - 深度学习基础
 """
 import numpy as np
 from sklearn.neural_network import MLPClassifier
@@ -58,6 +57,7 @@ class ANNModel(BaseModel):
         # 获取loss曲线
         if hasattr(self.model, 'loss_curve_'):
             self.loss_curve = self.model.loss_curve_
+            print(f"✅ ANN loss曲线已记录，共{len(self.loss_curve)}个点")
         
         return self.model
     

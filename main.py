@@ -1,4 +1,4 @@
-"""
+﻿"""
 机器学习期末作业 - 主程序
 基于Dry Bean Dataset的多分类算法对比实验
 """
@@ -48,7 +48,7 @@ logging.getLogger('src.analyzer').setLevel(logging.INFO)
 def check_data_files(data_dir='data'):
     """检查数据文件是否存在"""
     data_path = Path(data_dir)
-    
+
     possible_files = [
         'Dry_Bean_Dataset_Dirty_train.csv',
         'Dry_Bean_Dataset_Dirty_test.csv',
@@ -58,12 +58,12 @@ def check_data_files(data_dir='data'):
         'val.csv',
         'Dry_Bean_Dataset.csv'
     ]
-    
+
     found_files = []
     for f in possible_files:
         if (data_path / f).exists():
             found_files.append(f)
-    
+
     return found_files
 
 
@@ -89,58 +89,226 @@ def inspect_data(df, name="数据"):
     print(f"{'='*50}\n")
 
 
-def generate_course_summary(results, trainer):
-    """生成课程总结"""
-    print("\n" + "=" * 70)
-    print("  课程总结")
+def main():
+    """主函数"""
+    print("=" * 70)
+    print("  机器学习期末作业 - Dry Bean Dataset 多分类实验")
     print("=" * 70)
     print()
-    
-    print("【学习收获】")
+
+    # 记录开始时间
+    logger.info("=" * 70)
+    logger.info("机器学习期末作业 - Dry Bean Dataset 多分类实验")
+    logger.info("=" * 70)
+
+    # 1. 检查数据文件
+    print("【步骤0】检查数据文件...")
+    logger.info("步骤0: 检查数据文件")
+    found_files = check_data_files('data')
+
+    if not found_files:
+        print("❌ 错误: 在 data/ 目录下未找到数据文件!")
+        print("   请确保数据文件在 data/ 目录下")
+        logger.error("在 data/ 目录下未找到数据文件")
+        return
+
+    print(f"✅ 找到数据文件: {found_files}")
+    logger.info(f"找到数据文件: {found_files}")
+
+    # 确定训练集和测试集文件名
+    train_file = None
+    test_file = None
+    val_file = None
+
+    if 'Dry_Bean_Dataset_Dirty_train.csv' in found_files:
+        train_file = 'Dry_Bean_Dataset_Dirty_train.csv'
+    elif 'train.csv' in found_files:
+        train_file = 'train.csv'
+
+    if 'Dry_Bean_Dataset_Dirty_test.csv' in found_files:
+        test_file = 'Dry_Bean_Dataset_Dirty_test.csv'
+    elif 'test.csv' in found_files:
+        test_file = 'test.csv'
+
+    if 'Dry_Bean_Dataset_Dirty_val.csv' in found_files:
+        val_file = 'Dry_Bean_Dataset_Dirty_val.csv'
+    elif 'val.csv' in found_files:
+        val_file = 'val.csv'
+
+    print(f"   训练集: {train_file}")
+    print(f"   测试集: {test_file}")
+    if val_file:
+        print(f"   验证集: {val_file}")
+    logger.info(f"训练集: {train_file}, 测试集: {test_file}")
     print()
-    print("1. 机器学习全流程理解")
-    print("   - 从数据加载到模型部署的完整流程")
-    print("   - 工程化项目结构和代码组织")
-    print("   - 命令行工具的开发和测试")
+
+    # 2. 创建训练器
+    print("【步骤1】初始化训练器...")
+    logger.info("步骤1: 初始化训练器")
+    trainer = Trainer(data_dir='data', results_dir='results', random_state=42)
+
+    # 3. 加载数据
+    print("【步骤2】加载数据...")
+    logger.info("步骤2: 加载数据")
+
+    data_loader = DataLoader('data')
+
+    # 加载训练集
+    train_path = data_loader.data_dir / train_file
+    train_df = pd.read_csv(train_path)
+
+    # 加载测试集
+    test_path = data_loader.data_dir / test_file
+    test_df = pd.read_csv(test_path)
+
+    # 显示数据信息
+    inspect_data(train_df, "训练集")
+    inspect_data(test_df, "测试集")
+
+    # 检查目标列名
+    target_col = None
+    possible_targets = ['Class', 'class', 'target', 'label', 'Type', 'type']
+    for col in train_df.columns:
+        if col in possible_targets:
+            target_col = col
+            break
+        if 'class' in col.lower() or 'type' in col.lower():
+            target_col = col
+            break
+
+    if target_col is None:
+        target_col = train_df.columns[-1]
+        print(f"   ⚠️ 未找到明确的目标列，使用最后一列: {target_col}")
+        logger.warning(f"未找到明确的目标列，使用最后一列: {target_col}")
+
+    # 提取特征和标签
+    X_train_raw = train_df.drop(columns=[target_col])
+    y_train_raw = train_df[target_col]
+
+    X_test_raw = test_df.drop(columns=[target_col])
+    y_test_raw = test_df[target_col]
+
+    print(f"   训练集大小: {X_train_raw.shape}")
+    print(f"   测试集大小: {X_test_raw.shape}")
+    print(f"   特征数量: {X_train_raw.shape[1]}")
+    print(f"   目标列名: {target_col}")
+    logger.info(f"训练集大小: {X_train_raw.shape}, 测试集大小: {X_test_raw.shape}")
+
+    # 显示类别分布
+    print(f"\n   训练集类别分布:")
+    print(y_train_raw.value_counts())
+    print(f"\n   测试集类别分布:")
+    print(y_test_raw.value_counts())
     print()
-    print("2. 数据处理能力提升")
-    print("   - 数据清洗和特征工程")
-    print("   - 数据标准化和编码")
-    print("   - 噪声添加和鲁棒性测试")
+
+    # 4. 数据预处理
+    print("【步骤2.1】数据预处理...")
+    logger.info("步骤2.1: 数据预处理")
+
+    preprocessor = Preprocessor()
+    preprocessor.feature_names = X_train_raw.columns.tolist()
+
+    X_train, y_train = preprocessor.fit_transform(X_train_raw, y_train_raw)
+    X_test, y_test = preprocessor.transform(X_test_raw, y_test_raw)
+
+    trainer.X_train = X_train
+    trainer.y_train = y_train
+    trainer.X_test = X_test
+    trainer.y_test = y_test
+    trainer.preprocessor = preprocessor
+
+    print(f"   预处理完成，训练集大小: {X_train.shape}")
+    print(f"   标签编码: {dict(enumerate(preprocessor.label_encoder.classes_))}")
+    logger.info(f"预处理完成，训练集大小: {X_train.shape}")
     print()
-    print("3. 多算法深度理解")
-    print("   - 实现了5种多分类算法: RandomForest, XGBoost, LightGBM, CatBoost, ANN")
-    print("   - 理解集成学习方法(Bagging/Boosting)的优劣对比")
-    print("   - 掌握超参数调优技巧")
-    print()
-    print("4. 评估与分析能力")
-    print("   - 多维度模型评估(准确率、F1、AUC等)")
-    print("   - 可视化报告生成")
-    print("   - 过拟合和鲁棒性分析")
-    print()
-    
-    print("【课程评价】")
-    print()
-    print("优点:")
-    print("  ✅ 实践性强，理论结合实际")
-    print("  ✅ 项目驱动，提升综合能力")
-    print("  ✅ 开放要求，鼓励自主探索")
-    print()
-    print("建议:")
-    print("  💡 可增加更多前沿算法的介绍")
-    print("  💡 可引入深度学习相关内容")
-    print("  💡 可增加模型部署环节")
-    print("  💡 可增加更多工业界案例")
-    print()
-    
-    # 保存课程总结到文件
-    summary_path = Path('results/reports/course_summary.md')
-    with open(summary_path, 'w', encoding='utf-8') as f:
-        f.write("# 课程总结\n\n")
-        f.write("## 学习收获\n\n")
-        f.write("### 1. 机器学习全流程理解\n")
-        f.write("- 从数据加载到模型部署的完整流程\n")
-        f.write("- 工程化项目结构和代码组织\n")
-        f.write("- 命令行工具的开发和测试\n\n")
-        f.write("### 2. 数据处理能力提升\n")
-        f
+
+    # 5. 训练模型
+    print("【步骤3】训练模型...")
+    logger.info("步骤3: 训练模型")
+    trainer.train_models()
+
+    # 6. 评估模型
+    print("【步骤4】评估模型...")
+    logger.info("步骤4: 评估模型")
+    trainer.evaluate_models()
+
+    # 7. 生成对比图表
+    if trainer.results:
+        print("【步骤4.1】生成对比图表...")
+        logger.info("步骤4.1: 生成对比图表")
+        trainer.evaluator.plot_comparison(
+            trainer.results,
+            trainer.training_times,
+            trainer.prediction_times
+        )
+
+    # 8. 生成结果摘要
+    summary = trainer.evaluator.get_results_summary(
+        trainer.results,
+        trainer.training_times,
+        trainer.prediction_times
+    )
+
+    print("\n" + "=" * 70)
+    print("  模型性能对比结果")
+    print("=" * 70)
+    print(summary.to_string(index=False))
+    logger.info("\n模型性能对比结果:\n" + summary.to_string(index=False))
+
+    # 9. 鲁棒性测试
+    print("\n【步骤5】执行鲁棒性测试...")
+    logger.info("步骤5: 执行鲁棒性测试")
+    robustness_results = trainer.robustness_test(
+        noise_levels=[0.05, 0.1, 0.2, 0.3]
+    )
+    print("\n鲁棒性测试完成!")
+    logger.info("鲁棒性测试完成")
+
+    # 10. 过拟合分析
+    print("\n【步骤6】过拟合分析...")
+    print("=" * 70)
+    logger.info("步骤6: 过拟合分析")
+
+    for name, model in trainer.trained_models.items():
+        y_train_pred = model.predict(trainer.X_train)
+        train_acc = np.mean(y_train_pred == trainer.y_train)
+
+        y_test_pred = model.predict(trainer.X_test)
+        test_acc = np.mean(y_test_pred == trainer.y_test)
+
+        gap = train_acc - test_acc
+        if gap < 0.02:
+            status = "✅ 泛化良好"
+        elif gap < 0.08:
+            status = "⚠️ 轻微过拟合"
+        else:
+            status = "❌ 严重过拟合"
+        msg = f"{name}: 训练集精度={train_acc:.4f}, 测试集精度={test_acc:.4f}, 差距={gap:.4f} {status}"
+        print(f"  {msg}")
+        logger.info(msg)
+
+    # 11. 输出总结
+    print("\n" + "=" * 70)
+    print("  实验总结")
+    print("=" * 70)
+    logger.info("实验总结")
+
+    if not summary.empty:
+        best_acc = summary['Accuracy'].astype(float).max()
+        best_model = summary[summary['Accuracy'].astype(float) == best_acc]['Model'].values[0]
+        print(f"  🏆 最佳模型: {best_model}")
+        print(f"  📊 最高准确率: {best_acc:.4f}")
+        logger.info(f"最佳模型: {best_model}, 最高准确率: {best_acc:.4f}")
+
+    print(f"  📁 所有结果已保存到: results/ 目录")
+    print(f"     - 图表: results/figures/")
+    print(f"     - 指标: results/metrics/model_comparison.csv")
+    print(f"     - 日志: results/logs/training_log.txt")
+    logger.info("所有结果已保存到 results/ 目录")
+
+    print("\n✅ 实验完成!")
+    logger.info("实验完成!")
+
+
+if __name__ == '__main__':
+    main()

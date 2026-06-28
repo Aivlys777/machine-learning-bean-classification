@@ -1,6 +1,5 @@
 """
 CatBoost分类器
-课堂没讲过的算法
 """
 import numpy as np
 from catboost import CatBoostClassifier
@@ -40,7 +39,7 @@ class CatBoostModel(BaseModel):
             self.build_model()
         
         # 如果有验证集，使用early stopping并记录loss
-        if X_val is not None and y_val is not None:
+        if X_val is not None and y_val is not None and len(X_val) > 0:
             eval_set = [(X_val, y_val)]
             self.model.fit(
                 X_train, y_train,
@@ -48,11 +47,12 @@ class CatBoostModel(BaseModel):
                 early_stopping_rounds=10,
                 verbose=False
             )
-            # 获取loss曲线
+            # 获取loss曲线 - 取验证集loss
             if hasattr(self.model, 'evals_result_'):
                 results = self.model.evals_result_
-                if 'learn' in results and 'MultiClass' in results['learn']:
-                    self.loss_curve = results['learn']['MultiClass']
+                if 'validation' in results and 'MultiClass' in results['validation']:
+                    self.loss_curve = results['validation']['MultiClass']
+                    print(f"✅ CatBoost loss曲线已记录，共{len(self.loss_curve)}个点")
         else:
             self.model.fit(X_train, y_train)
         
